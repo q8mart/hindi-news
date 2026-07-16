@@ -116,7 +116,27 @@
     transition: background .15s;
   }
   .btn:hover { background: var(--red-dark); }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .btn-video { margin-top: 10px; background: #1f2937; }
+  .btn-video:hover { background: #0f172a; }
   .hint { font-size: 11.5px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+
+  .extras { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+  .chip {
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid #c7ccd2; border-radius: 8px;
+    padding: 9px 11px; background: #fff; cursor: pointer;
+    font-size: 13px; color: #374151;
+  }
+  .chip:hover { border-color: var(--red); }
+  .chip.set { border-color: #16a34a; background: #f0fdf4; color: #14532d; }
+  .chip .ic { font-size: 16px; }
+  .chip .txt { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip .x {
+    border: none; background: #e5e7eb; color: #374151; cursor: pointer;
+    width: 20px; height: 20px; border-radius: 50%; font-size: 13px; line-height: 20px; padding: 0;
+  }
+  .chip .x:hover { background: #d1d5db; }
 
   /* ---- preview card ---- */
   .preview-col { display: flex; flex-direction: column; align-items: center; }
@@ -208,8 +228,28 @@
       <label class="field">Generated Hindi text (yahan edit/hata sakte ho)</label>
       <textarea id="generated" placeholder="Generate dabao ya seedha yahan Hindi text likho/paste karo..."></textarea>
 
-      <button class="btn" id="downloadBtn">Template Image Download Karo</button>
-      <p class="hint">Image seedha download ho jayegi. Agar browser block kare to nayi tab me khuli image par right-click karke &lsquo;Save Image As&rsquo; karo.</p>
+      <label class="field">Video ke liye extra (optional)</label>
+      <div class="extras">
+        <label class="chip" id="logoChip">
+          <span class="ic">&#128444;</span>
+          <span class="txt" id="logoName">Logo add karo (video start me)</span>
+          <input type="file" accept="image/*" id="logoInput" hidden>
+          <button class="x" id="logoClear" title="Hatao" hidden>&times;</button>
+        </label>
+        <label class="chip" id="audioChip">
+          <span class="ic">&#127925;</span>
+          <span class="txt" id="audioName">Sound add karo (apne system se)</span>
+          <input type="file" accept="audio/*" id="audioInput" hidden>
+          <button class="x" id="audioClear" title="Hatao" hidden>&times;</button>
+        </label>
+      </div>
+
+      <button class="btn" id="downloadBtn">&#128247; Image Template Download Karo (PNG)</button>
+      <button class="btn btn-video" id="videoBtn">&#127916; Video Template Download Karo (MP4)</button>
+      <p class="hint">
+        <b>Image:</b> ek PNG photo download hogi.<br>
+        <b>Video:</b> card ~6 second ka animated <b>MP4</b> video banega &mdash; Instagram, TikTok, WhatsApp sab me direct upload hoga. Recording ke waqt yeh tab khula rakho.
+      </p>
     </section>
 
     <!-- ================= PREVIEW ================= -->
@@ -236,6 +276,8 @@
   // ---------- state ----------
   const MAX = 4;
   let photos = []; // array of {dataUrl, img}
+  let logoImg = null;  // Image() for the video intro logo
+  let audioURL = null; // object URL of the uploaded sound
 
   // ---------- date ----------
   function todayStr() {
@@ -472,51 +514,48 @@
     ctx.closePath();
   }
 
-  function buildCanvas() {
-    const S = 2;                 // supersample for crisp text
-    const W = 440;               // base card width (px)
-    const border = 6;
-    const pad = 18;
+  // Compute all card measurements + wrapped text lines (shared by PNG + video).
+  function computeLayout() {
+    const W = 440, border = 6, pad = 18;
     const innerW = W - border * 2;
     const contentW = innerW - pad * 2;
-
     const { headline, body } = currentContent();
     const dateTxt = todayStr();
-
-    // measure pass on a temp ctx
     const tmp = document.createElement("canvas").getContext("2d");
     const fam = getComputedStyle(document.body).fontFamily;
-    const hFont = "800 17px " + fam;
-    const bFont = "400 14px " + fam;
-    tmp.font = hyphenNo(tmp, hFont);
+    tmp.font = "800 17px " + fam;
     const hLines = wrapLines(tmp, headline || " ", contentW);
-    tmp.font = bFont;
+    tmp.font = "400 14px " + fam;
     const bLines = wrapLines(tmp, body || " ", contentW);
-
-    const headerH = 52;
-    const mediaH = Math.round(innerW * 0.60);
-    const dotsH = 26;
+    const headerH = 52, mediaH = Math.round(innerW * 0.60), dotsH = 26;
     const hLineH = 24, bLineH = 24;
     const headlineBlock = 12 + hLines.length * hLineH + 8;
     const bodyBlock = bLines.length * bLineH + 12;
-    const ruleH = 12;
-    const dateH = 56;
-
+    const ruleH = 12, dateH = 56;
     const innerH = headerH + mediaH + dotsH + headlineBlock + bodyBlock + ruleH + dateH;
     const H = innerH + border * 2;
+    return { W, H, border, pad, innerW, contentW, innerH, fam, hLines, bLines,
+             dateTxt, headerH, mediaH, dotsH, hLineH, bLineH, ruleH };
+  }
 
-    const canvas = document.createElement("canvas");
-    canvas.width = W * S;
-    canvas.height = H * S;
-    const ctx = canvas.getContext("2d");
-    ctx.scale(S, S);
-    ctx.textBaseline = "alphabetic";
+  // Draw the card. `a` holds per-element animation values (all default to the
+  // fully-visible static state, so drawCard(ctx, L) renders the still card).
+  function drawCard(ctx, L, a) {
+    a = a || {};
+    const gv = (k, d) => (a[k] === undefined ? d : a[k]);
+    const mediaAlpha = gv("mediaAlpha", 1), mediaScale = gv("mediaScale", 1);
+    const dotScale = gv("dotScale", 1);
+    const hlAlpha = gv("hlAlpha", 1), hlDy = gv("hlDy", 0);
+    const bodyAlpha = gv("bodyAlpha", 1), bodyDy = gv("bodyDy", 0);
+    const ruleAlpha = gv("ruleAlpha", 1);
+    const dateAlpha = gv("dateAlpha", 1), dateScale = gv("dateScale", 1);
+    const { W, H, border, pad, innerW, innerH, fam, hLines, bLines, dateTxt,
+            headerH, mediaH, dotsH, hLineH, bLineH } = L;
 
-    // red border card
-    ctx.fillStyle = "#e01e26";
-    roundRect(ctx, 0, 0, W, H, 12); ctx.fill();
-    ctx.fillStyle = "#ffffff";
-    roundRect(ctx, border, border, innerW, innerH, 7); ctx.fill();
+    // card frame (always solid)
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#e01e26"; roundRect(ctx, 0, 0, W, H, 12); ctx.fill();
+    ctx.fillStyle = "#ffffff"; roundRect(ctx, border, border, innerW, innerH, 7); ctx.fill();
 
     let y = border;
 
@@ -531,16 +570,23 @@
     ctx.textAlign = "left";
     y += headerH;
 
-    // media
-    drawCollage(ctx, photos.map(p => p.img), border, y, innerW, mediaH);
+    // media (fade + zoom), clipped to its band
+    ctx.save();
+    ctx.beginPath(); ctx.rect(border, y, innerW, mediaH); ctx.clip();
+    ctx.globalAlpha = mediaAlpha;
+    const mcx = border + innerW / 2, mcy = y + mediaH / 2;
+    const sw = innerW * mediaScale, sh = mediaH * mediaScale;
+    drawCollage(ctx, photos.map(p => p.img), mcx - sw / 2, mcy - sh / 2, sw, sh);
+    ctx.restore();
+    ctx.globalAlpha = 1;
     y += mediaH;
 
-    // dots + rule
+    // dots + rule (dots pulse)
     const dy = y + 16;
     ctx.fillStyle = "#d32020";
     [0, 1, 2].forEach(i => {
       ctx.beginPath();
-      ctx.arc(border + pad + 5 + i * 16, dy, 4.5, 0, Math.PI * 2);
+      ctx.arc(border + pad + 5 + i * 16, dy, 4.5 * dotScale, 0, Math.PI * 2);
       ctx.fill();
     });
     ctx.strokeStyle = "#e5e7eb"; ctx.lineWidth = 2;
@@ -550,58 +596,293 @@
     ctx.stroke();
     y += dotsH;
 
-    // headline (centered)
+    // headline (centered, reveal)
+    ctx.globalAlpha = hlAlpha;
     ctx.fillStyle = "#111";
     ctx.font = "800 17px " + fam;
     ctx.textAlign = "center";
     y += 12;
-    hLines.forEach(line => { ctx.fillText(line, W / 2, y + 17); y += hLineH; });
+    hLines.forEach(line => { ctx.fillText(line, W / 2, y + 17 + hlDy); y += hLineH; });
     y += 8;
 
-    // body (left aligned)
+    // body (left aligned, reveal)
+    ctx.globalAlpha = bodyAlpha;
     ctx.fillStyle = "#222";
     ctx.font = "400 14px " + fam;
     ctx.textAlign = "left";
-    bLines.forEach(line => { ctx.fillText(line, border + pad, y + 14); y += bLineH; });
+    bLines.forEach(line => { ctx.fillText(line, border + pad, y + 14 + bodyDy); y += bLineH; });
     y += 12;
 
     // foot rule
+    ctx.globalAlpha = ruleAlpha;
     ctx.strokeStyle = "#e5e7eb"; ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(border + pad, y);
     ctx.lineTo(W - border - pad, y);
     ctx.stroke();
-    y += ruleH;
+    y += 12;
 
-    // date pill
+    // date pill (fade + pop)
+    ctx.globalAlpha = dateAlpha;
     ctx.font = "700 13px " + fam;
     const tw = ctx.measureText(dateTxt).width;
     const pw = tw + 32, ph = 30;
     const px = (W - pw) / 2, py = y + 8;
+    ctx.save();
+    const pcx = W / 2, pcy = py + ph / 2;
+    ctx.translate(pcx, pcy); ctx.scale(dateScale, dateScale); ctx.translate(-pcx, -pcy);
     ctx.fillStyle = "#f5c518";
     roundRect(ctx, px, py, pw, ph, 15); ctx.fill();
     ctx.fillStyle = "#3a2f00";
     ctx.textAlign = "center";
     ctx.fillText(dateTxt, W / 2, py + 20);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
 
+  // Static PNG canvas.
+  function buildCanvas() {
+    const S = 2;
+    const L = computeLayout();
+    const canvas = document.createElement("canvas");
+    canvas.width = L.W * S;
+    canvas.height = L.H * S;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(S, S);
+    ctx.textBaseline = "alphabetic";
+    drawCard(ctx, L);
     return canvas;
   }
-  // small helper so JS lint stays happy about unused font var path
-  function hyphenNo(ctx, f) { return f; }
 
+  // ---------- video (logo intro + animated card -> MP4/WebM) ----------
+  function smooth(x) { x = x < 0 ? 0 : x > 1 ? 1 : x; return x * x * (3 - 2 * x); }
+  function seg(ms, a, b) { return smooth((ms - a) / (b - a)); }
+
+  // Card animation state as a function of elapsed card-time (ms).
+  function cardAnim(ms) {
+    return {
+      mediaAlpha: seg(ms, 0, 700),
+      mediaScale: 1.06 - 0.06 * smooth(Math.min(ms / 6000, 1)),  // slow ken-burns zoom
+      dotScale: 1 + 0.4 * Math.abs(Math.sin(ms / 300)),          // pulsing live dots
+      hlAlpha: seg(ms, 500, 1300),
+      hlDy: (1 - seg(ms, 500, 1300)) * 14,
+      bodyAlpha: seg(ms, 1100, 2200),
+      bodyDy: (1 - seg(ms, 1100, 2200)) * 10,
+      ruleAlpha: seg(ms, 1900, 2500),
+      dateAlpha: seg(ms, 2100, 2800),
+      dateScale: 0.6 + 0.4 * seg(ms, 2100, 2800),
+    };
+  }
+
+  // Logo intro splash. p = 0..1 progress through the intro.
+  function drawIntro(ctx, W, H, p) {
+    let alpha = 1;
+    if (p < 0.28) alpha = p / 0.28;              // fade in
+    else if (p > 0.82) alpha = (1 - p) / 0.18;   // fade out
+    alpha = Math.max(0, Math.min(1, alpha));
+    const grow = 0.92 + 0.08 * smooth(Math.min(p / 0.28, 1));
+    const maxW = W * 0.78, maxH = H * 0.55;
+    const ar = logoImg.width / logoImg.height;
+    let w = maxW, h = w / ar;
+    if (h > maxH) { h = maxH; w = h * ar; }
+    w *= grow; h *= grow;
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(logoImg, (W - w) / 2, (H - h) / 2, w, h);
+    ctx.globalAlpha = 1;
+  }
+
+  async function recordVideo(btn) {
+    const CARD_MS = 6000;
+    const INTRO_MS = logoImg ? 1500 : 0;   // logo shown first, only if one was added
+    const DURATION = INTRO_MS + CARD_MS;
+    const L = computeLayout();
+
+    // Scale up so the video is ~1080px-class (Instagram/TikTok like >=1080 wide),
+    // and force EVEN pixel dimensions (H.264 requires even width & height).
+    const S = Math.max(2, Math.ceil(1080 / L.W));
+    let cw = Math.round(L.W * S), ch = Math.round(L.H * S);
+    if (cw % 2) cw++;
+    if (ch % 2) ch++;
+    const canvas = document.createElement("canvas");
+    canvas.width = cw;
+    canvas.height = ch;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(S, S);
+    ctx.textBaseline = "alphabetic";
+
+    // Prefer MP4/H.264 (+ AAC when there is sound). Fall back to WebM.
+    const withAudio = !!audioURL;
+    const types = withAudio ? [
+      "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
+      "video/mp4;codecs=avc1,mp4a.40.2",
+      "video/mp4",
+      "video/webm;codecs=vp9,opus",
+      "video/webm;codecs=vp8,opus",
+      "video/webm",
+    ] : [
+      "video/mp4;codecs=avc1.42E01E",
+      "video/mp4;codecs=avc1",
+      "video/mp4",
+      "video/webm;codecs=vp9",
+      "video/webm;codecs=vp8",
+      "video/webm",
+    ];
+    const mime = types.find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t));
+    if (!mime) throw new Error("Is browser me video recording support nahi hai (Chrome use karo).");
+    const isMp4 = mime.indexOf("video/mp4") === 0;
+    const container = isMp4 ? "video/mp4" : "video/webm";
+    const ext = isMp4 ? "mp4" : "webm";
+
+    const stream = canvas.captureStream(30);
+
+    // Mix in the uploaded sound. Captured silently via Web Audio (source is NOT
+    // connected to the speakers) so it lands in the file without blasting aloud.
+    let audioCtx = null, audioEl = null;
+    if (withAudio) {
+      try {
+        audioEl = new Audio(audioURL);
+        audioEl.loop = true;
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        await audioCtx.resume();
+        const src = audioCtx.createMediaElementSource(audioEl);
+        const dest = audioCtx.createMediaStreamDestination();
+        src.connect(dest);
+        await audioEl.play();
+        dest.stream.getAudioTracks().forEach(tk => stream.addTrack(tk));
+      } catch (e) {
+        audioEl = null;   // sound optional — continue with a silent video
+      }
+    }
+
+    const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6000000 });
+    const chunks = [];
+    rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    const finished = new Promise(res => {
+      rec.onstop = () => {
+        if (audioEl) { try { audioEl.pause(); } catch (e) {} }
+        if (audioCtx) { try { audioCtx.close(); } catch (e) {} }
+        res({ blob: new Blob(chunks, { type: container }), ext });
+      };
+    });
+    rec.start();
+
+    await new Promise(resolve => {
+      const t0 = performance.now();
+      // setTimeout (not requestAnimationFrame) so recording still completes
+      // even if the browser tab is in the background.
+      function frame() {
+        const ms = performance.now() - t0;
+        const t = Math.min(ms / DURATION, 1);
+        const inIntro = ms < INTRO_MS;
+
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);                    // fill full physical canvas
+        ctx.fillStyle = inIntro ? "#1f2937" : "#e9ebee";       // dark for logo, light for card
+        ctx.fillRect(0, 0, cw, ch);
+        ctx.restore();
+
+        if (inIntro) drawIntro(ctx, L.W, L.H, ms / INTRO_MS);
+        else drawCard(ctx, L, cardAnim(ms - INTRO_MS));
+
+        if (btn) btn.textContent = "Recording video... " + Math.max(1, Math.ceil((DURATION - ms) / 1000)) + "s";
+        if (t >= 1) resolve(); else setTimeout(frame, 1000 / 30);
+      }
+      setTimeout(frame, 0);
+    });
+
+    rec.stop();
+    return finished;
+  }
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  // Image template -> PNG
   document.getElementById("downloadBtn").onclick = () => {
-    const canvas = buildCanvas();
-    canvas.toBlob((blob) => {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "hindi-news-card.png";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
-    }, "image/png");
+    buildCanvas().toBlob(blob => downloadBlob(blob, "hindi-news-card.png"), "image/png");
   };
+
+  // Video template -> animated WebM
+  document.getElementById("videoBtn").onclick = async () => {
+    const btn = document.getElementById("videoBtn");
+    const label = btn.textContent;
+    btn.disabled = true;
+    document.getElementById("downloadBtn").disabled = true;
+    try {
+      const { blob, ext } = await recordVideo(btn);
+      downloadBlob(blob, "hindi-news-card." + ext);
+    } catch (e) {
+      alert("Video banane me dikkat: " + e.message);
+    } finally {
+      btn.textContent = label;
+      btn.disabled = false;
+      document.getElementById("downloadBtn").disabled = false;
+    }
+  };
+
+  // ---------- extras: logo (video intro) + sound ----------
+  (function setupExtras() {
+    const logoInput = document.getElementById("logoInput");
+    const logoChip = document.getElementById("logoChip");
+    const logoName = document.getElementById("logoName");
+    const logoClear = document.getElementById("logoClear");
+    const audioInput = document.getElementById("audioInput");
+    const audioChip = document.getElementById("audioChip");
+    const audioName = document.getElementById("audioName");
+    const audioClear = document.getElementById("audioClear");
+
+    logoInput.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          logoImg = img;
+          logoName.textContent = file.name;
+          logoChip.classList.add("set");
+          logoClear.hidden = false;
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    };
+    logoClear.onclick = (e) => {
+      e.preventDefault();
+      logoImg = null;
+      logoInput.value = "";
+      logoName.textContent = "Logo add karo (video start me)";
+      logoChip.classList.remove("set");
+      logoClear.hidden = true;
+    };
+
+    audioInput.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (audioURL) URL.revokeObjectURL(audioURL);
+      audioURL = URL.createObjectURL(file);
+      audioName.textContent = file.name;
+      audioChip.classList.add("set");
+      audioClear.hidden = false;
+    };
+    audioClear.onclick = (e) => {
+      e.preventDefault();
+      if (audioURL) URL.revokeObjectURL(audioURL);
+      audioURL = null;
+      audioInput.value = "";
+      audioName.textContent = "Sound add karo (apne system se)";
+      audioChip.classList.remove("set");
+      audioClear.hidden = true;
+    };
+  })();
 
   // ---------- init ----------
   renderSlots();
