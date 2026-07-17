@@ -226,8 +226,11 @@
 
       <button class="btn" id="generateBtn">Hindi Short News Generate Karo</button>
 
-      <label class="field">Generated Hindi text (yahan edit/hata sakte ho)</label>
-      <textarea id="generated" placeholder="Generate dabao ya seedha yahan Hindi text likho/paste karo..."></textarea>
+      <label class="field">Headline (Hindi)</label>
+      <textarea id="genHeadline" placeholder="Yahan headline paste/likho karo..." style="min-height:60px"></textarea>
+
+      <label class="field">Content / Body (Hindi)</label>
+      <textarea id="genBody" placeholder="Yahan body/content paste/likho karo..." style="min-height:120px"></textarea>
 
       <label class="field">Video ke liye extra (optional)</label>
       <div class="extras">
@@ -378,7 +381,8 @@
   }
 
   // ---------- generate ----------
-  // Splits your text into headline + body (first line = headline, rest = body).
+  // Splits translated text into headline + body (first line = headline, rest = body)
+  // — used once, right after translation, to pre-fill the two separate boxes.
   function splitText(raw) {
     const lines = raw.split(/\n+/).map(s => s.trim()).filter(Boolean);
     if (lines.length === 0) return { headline: "", body: "" };
@@ -402,7 +406,9 @@
       const lines = raw.split(/\n+/).map(s => s.trim()).filter(Boolean);
       const translated = [];
       for (const ln of lines) translated.push(await translateToHindi(ln));
-      document.getElementById("generated").value = translated.join("\n");
+      const { headline, body } = splitText(translated.join("\n"));
+      document.getElementById("genHeadline").value = headline;
+      document.getElementById("genBody").value = body;
       syncPreview();
     } catch (e) {
       alert("Translation fail hui: " + e.message
@@ -415,7 +421,8 @@
 
   // ---------- preview text sync ----------
   function currentContent() {
-    const { headline, body } = splitText(document.getElementById("generated").value);
+    const headline = document.getElementById("genHeadline").value.trim();
+    const body = document.getElementById("genBody").value.trim();
     return { headline, body };
   }
   function syncPreview() {
@@ -424,7 +431,8 @@
     document.getElementById("pvBody").textContent = body || "Yahan news ka body text aayega.";
     document.getElementById("pvDate").textContent = todayStr();
   }
-  document.getElementById("generated").addEventListener("input", syncPreview);
+  document.getElementById("genHeadline").addEventListener("input", syncPreview);
+  document.getElementById("genBody").addEventListener("input", syncPreview);
 
   // ================= DOWNLOAD (canvas render) =================
   function wrapLines(ctx, text, maxW) {
