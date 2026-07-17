@@ -195,6 +195,7 @@
   }
   .card .body {
     text-align: justify;
+    font-weight: 800;
     font-size: 13.5px;
     line-height: 1.7;
     padding: 6px 18px 14px;
@@ -525,7 +526,7 @@
     const fam = getComputedStyle(document.body).fontFamily;
     tmp.font = "800 17px " + fam;
     const hLines = wrapLines(tmp, headline || " ", contentW);
-    tmp.font = "400 14px " + fam;
+    tmp.font = "800 14px " + fam;
     const bLines = wrapLines(tmp, body || " ", contentW);
     const headerH = 52, mediaH = Math.round(innerW * 0.60), dotsH = 26;
     const hLineH = 24, bLineH = 24;
@@ -608,7 +609,7 @@
     // body (left aligned, reveal)
     ctx.globalAlpha = bodyAlpha;
     ctx.fillStyle = "#222";
-    ctx.font = "400 14px " + fam;
+    ctx.font = "800 14px " + fam;
     ctx.textAlign = "left";
     bLines.forEach(line => { ctx.fillText(line, border + pad, y + 14 + bodyDy); y += bLineH; });
     y += 12;
