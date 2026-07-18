@@ -121,30 +121,22 @@
   .btn-video:hover { background: #0f172a; }
   .hint { font-size: 11.5px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
 
-  /* ---- social share buttons ---- */
-  .social-share { display: flex; gap: 8px; margin-top: 12px; }
-  .btn-soc {
+  /* ---- share: type choice + single share button ---- */
+  .choice-row { display: flex; gap: 10px; margin-top: 6px; }
+  .choice {
     flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 11px 6px;
-    border: none;
-    border-radius: 8px;
-    color: #fff;
-    font-family: var(--font);
-    font-size: 12.5px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: filter .15s;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    border: 1px solid #c7ccd2; border-radius: 8px;
+    padding: 10px; background: #fff; cursor: pointer;
+    font-size: 13.5px; font-weight: 600; color: #374151;
   }
-  .btn-soc:hover { filter: brightness(1.12); }
-  .btn-soc:disabled { opacity: .6; cursor: default; filter: none; }
-  .btn-soc .ic { width: 16px; height: 16px; flex-shrink: 0; }
-  .btn-tiktok { background: #010101; }
-  .btn-instagram { background: linear-gradient(135deg,#FEDA75,#FA7E1E,#D62976,#962FBF,#4F5BD5); }
-  .btn-youtube { background: #FF0000; }
+  .choice:has(input:checked) { border-color: var(--red); background: #fff5f5; color: var(--red-dark); }
+  .choice input { accent-color: var(--red); }
+  .btn-share {
+    margin-top: 12px;
+    background: linear-gradient(135deg,#FEDA75,#FA7E1E,#D62976,#962FBF,#4F5BD5);
+  }
+  .btn-share:hover { filter: brightness(1.08); background: linear-gradient(135deg,#FEDA75,#FA7E1E,#D62976,#962FBF,#4F5BD5); }
 
   .extras { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
   .chip {
@@ -294,26 +286,16 @@
       <button class="btn" id="downloadBtn">&#128247; Image Template Download Karo (PNG)</button>
       <button class="btn btn-video" id="videoBtn">&#127916; Video Template Download Karo (MP4)</button>
 
-      <label class="field">Seedha social media par post karo</label>
-      <div class="social-share">
-        <button class="btn-soc btn-tiktok" id="shareTiktok" data-platform="TikTok">
-          <svg class="ic" viewBox="0 0 24 24"><circle cx="9.3" cy="15.7" r="2.9" fill="#25F4EE"/><circle cx="10.3" cy="14.9" r="2.9" fill="#FE2C55"/><circle cx="9.8" cy="15.3" r="2.9" fill="#fff"/><rect x="11.6" y="4" width="2" height="11" fill="#fff"/><path d="M13.6 4c.3 2.3 1.9 4 4 4.3v2c-1.5-.1-2.9-.6-4-1.4V4z" fill="#fff"/></svg>
-          TikTok
-        </button>
-        <button class="btn-soc btn-instagram" id="shareInstagram" data-platform="Instagram">
-          <svg class="ic" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="6" fill="none" stroke="#fff" stroke-width="2"/><circle cx="12" cy="12" r="4.6" fill="none" stroke="#fff" stroke-width="2"/><circle cx="17.2" cy="6.8" r="1.2" fill="#fff"/></svg>
-          Instagram
-        </button>
-        <button class="btn-soc btn-youtube" id="shareYoutube" data-platform="YouTube">
-          <svg class="ic" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="4" fill="none" stroke="#fff" stroke-width="2"/><path d="M10 8.5l6 3.5-6 3.5v-7z" fill="#fff"/></svg>
-          YouTube
-        </button>
+      <label class="field">Share karne ke liye kya banana hai?</label>
+      <div class="choice-row">
+        <label class="choice"><input type="radio" name="shareType" value="image" checked><span>&#128247; Photo</span></label>
+        <label class="choice"><input type="radio" name="shareType" value="video"><span>&#127916; Video</span></label>
       </div>
 
+      <button class="btn btn-share" id="shareBtn">&#128228; Share Karo (Instagram / Facebook / TikTok...)</button>
+
       <p class="hint">
-        <b>Image:</b> ek PNG photo download hogi.<br>
-        <b>Video:</b> card ~6 second ka animated <b>MP4</b> video banega &mdash; Instagram, TikTok, WhatsApp sab me direct upload hoga. Recording ke waqt yeh tab khula rakho.<br>
-        <b>Social buttons:</b> mobile par tap karne se phone ka <b>share sheet</b> khulega jisme aapka video already attached hoga &mdash; wahan se TikTok/Instagram/YouTube choose karo, app khul jayega with your video ready, bas <b>Post</b> dabana hoga. (Koi bhi website security reasons se apne aap post nahi kar sakti &mdash; yeh sab apps allow nahi karte, last tap hamesha aapko hi karna hoga.)
+        <b>Photo/Video choose karo</b>, phir <b>Share Karo</b> dabao &mdash; wo file ready karega aur phone ka <b>share sheet</b> khol dega, jisme Instagram, Facebook, TikTok, WhatsApp jaise saare app dikhenge (jo bhi phone me install hain). Wahan se app choose karo &mdash; file already attached milegi, bas andar jaake <b>Post</b> dabana hoga. (Koi bhi website security reasons se apne aap post nahi kar sakti, yeh sab apps allow nahi karte &mdash; last tap hamesha aapko hi karna hoga.) Yeh feature sirf mobile (Chrome/Safari) par kaam karta hai; desktop par file seedha download ho jayegi.
       </p>
     </section>
 
@@ -983,54 +965,53 @@
     }
   };
 
-  // ---------- social share (opens native share sheet with the video attached) ----------
-  function platformUploadUrl(platform) {
-    if (platform === "TikTok") return "https://www.tiktok.com/upload";
-    if (platform === "Instagram") return "https://www.instagram.com/";
-    if (platform === "YouTube") return "https://www.youtube.com/upload";
-    return "#";
-  }
-
-  async function shareToPlatform(btn) {
-    const platform = btn.dataset.platform;
-    const allBtns = [document.getElementById("shareTiktok"), document.getElementById("shareInstagram"), document.getElementById("shareYoutube"), document.getElementById("downloadBtn"), document.getElementById("videoBtn")];
+  // ---------- share: photo or video (native share sheet -> Instagram/Facebook/TikTok/etc) ----------
+  async function shareContent() {
+    const btn = document.getElementById("shareBtn");
+    const otherBtns = [document.getElementById("downloadBtn"), document.getElementById("videoBtn")];
+    const type = document.querySelector('input[name="shareType"]:checked').value; // "image" | "video"
     const label = btn.innerHTML;
-    allBtns.forEach(b => b.disabled = true);
+    btn.disabled = true;
+    otherBtns.forEach(b => b.disabled = true);
     try {
-      const { blob, ext } = await recordVideo(btn);
-      const file = new File([blob], "post." + ext, { type: blob.type });
+      let file, blob, ext;
+      if (type === "image") {
+        blob = await new Promise(res => buildCanvas().toBlob(res, "image/png"));
+        ext = "png";
+        file = new File([blob], "hindi-news-card.png", { type: "image/png" });
+      } else {
+        btn.innerHTML = "Video taiyaar ho raha hai...";
+        ({ blob, ext } = await recordVideo(btn));
+        file = new File([blob], "hindi-news-card." + ext, { type: blob.type });
+      }
 
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
           await navigator.share({
             files: [file],
-            title: (document.getElementById("genHeadline").value || "News"),
-            text: platform + " ke liye video"
+            title: (document.getElementById("genHeadline").value || "News")
           });
         } catch (shareErr) {
           if (shareErr && shareErr.name !== "AbortError") {
-            downloadBlob(blob, "hindi-news-card." + ext);
-            alert(platform + " share cancel/fail hua, isliye video download ho gaya hai. Ab " + platform + " app kholo aur usse manually upload kar do.");
+            downloadBlob(blob, file.name);
+            alert("Share cancel/fail hua, isliye " + type + " download ho gayi hai. Ab app kholke usse manually upload kar do.");
           }
         }
       } else {
-        // Desktop / unsupported browser: file share sheet nahi milta, isliye
-        // seedha download karo aur upload page khol do taaki manually post ho sake.
-        downloadBlob(blob, "hindi-news-card." + ext);
-        alert("Is browser/device par app seedha nahi khul sakta, isliye video download ho gaya hai. Ab khulne wale " + platform + " page/app par jaakar isse manually upload kar do (mobile Chrome/Safari me yeh button seedha " + platform + " app khol dega).");
-        window.open(platformUploadUrl(platform), "_blank");
+        // Desktop ya purane browser me file share sheet nahi milta.
+        downloadBlob(blob, file.name);
+        alert("Is browser/device par share sheet support nahi hai, isliye " + type + " download ho gayi hai. Mobile (Chrome/Safari) par yeh button seedha app share sheet khol dega.");
       }
     } catch (e) {
-      alert("Video banane me dikkat: " + e.message);
+      alert(type + " banane me dikkat: " + e.message);
     } finally {
       btn.innerHTML = label;
-      allBtns.forEach(b => b.disabled = false);
+      btn.disabled = false;
+      otherBtns.forEach(b => b.disabled = false);
     }
   }
 
-  document.getElementById("shareTiktok").onclick = (e) => shareToPlatform(e.currentTarget);
-  document.getElementById("shareInstagram").onclick = (e) => shareToPlatform(e.currentTarget);
-  document.getElementById("shareYoutube").onclick = (e) => shareToPlatform(e.currentTarget);
+  document.getElementById("shareBtn").onclick = shareContent;
 
   // ---------- extras: logo (video intro) + sound ----------
   (function setupExtras() {
