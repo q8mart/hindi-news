@@ -121,14 +121,15 @@
   .btn-video:hover { background: #0f172a; }
   .hint { font-size: 11.5px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
 
-  /* ---- share: type choice + single share button ---- */
-  .choice-row { display: flex; gap: 10px; margin-top: 6px; }
+  /* ---- choice rows: export size + share type ---- */
+  .choice-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
   .choice {
-    flex: 1;
+    flex: 1 1 110px;
     display: flex; align-items: center; justify-content: center; gap: 7px;
     border: 1px solid #c7ccd2; border-radius: 8px;
     padding: 10px; background: #fff; cursor: pointer;
-    font-size: 13.5px; font-weight: 600; color: #374151;
+    font-size: 13px; font-weight: 600; color: #374151;
+    text-align: center;
   }
   .choice:has(input:checked) { border-color: var(--red); background: #fff5f5; color: var(--red-dark); }
   .choice input { accent-color: var(--red); }
@@ -154,6 +155,23 @@
     width: 20px; height: 20px; border-radius: 50%; font-size: 13px; line-height: 20px; padding: 0;
   }
   .chip .x:hover { background: #d1d5db; }
+
+  /* ---- frame-capture modal (grab a still frame from a video you already have) ---- */
+  .frame-modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,.72);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; padding: 20px;
+  }
+  .frame-modal[hidden] { display: none; }
+  .frame-modal-inner {
+    background: #fff; border-radius: 12px; padding: 16px;
+    width: 100%; max-width: 420px;
+  }
+  .frame-modal-inner video { width: 100%; border-radius: 8px; background: #000; max-height: 60vh; display: block; }
+  .frame-modal-inner input[type=range] { width: 100%; margin-top: 10px; accent-color: var(--red); }
+  .frame-modal-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .frame-modal-actions .btn { margin-top: 0; }
+  .frame-hint { font-size: 11.5px; color: var(--muted); margin-top: 8px; line-height: 1.4; }
 
   /* ---- preview card ---- */
   .preview-col { display: flex; flex-direction: column; align-items: center; }
@@ -245,6 +263,26 @@
     white-space: nowrap;
   }
   .card .social-row .soc .ic { flex-shrink: 0; }
+
+  /* ---- bottom ticker (mirrors the canvas-drawn marquee in the live preview) ---- */
+  .card .ticker {
+    background: var(--border-red);
+    overflow: hidden;
+    white-space: nowrap;
+    padding: 9px 0;
+  }
+  .card .ticker span {
+    display: inline-block;
+    padding-left: 100%;
+    color: #fff;
+    font-weight: 700;
+    font-size: 12px;
+    animation: ticker-scroll 16s linear infinite;
+  }
+  @keyframes ticker-scroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
+  }
 </style>
 </head>
 <body>
@@ -259,6 +297,12 @@
       <label class="field">Photos (upto 4, jaise collage mein chahiye)</label>
       <div class="photos" id="photos"></div>
 
+      <label class="chip" id="frameChip" style="margin-top:10px">
+        <span class="ic">&#127909;</span>
+        <span class="txt">Ya apne kisi video se photo/frame capture karo</span>
+        <input type="file" accept="video/*" id="frameVideoInput" hidden>
+      </label>
+
       <button class="btn" id="generateBtn">Hindi Short News Generate Karo</button>
 
       <label class="field">Headline (Hindi)</label>
@@ -266,6 +310,9 @@
 
       <label class="field">Content / Body (Hindi)</label>
       <textarea id="genBody" placeholder="Yahan body/content paste/likho karo..." style="min-height:120px"></textarea>
+
+      <label class="field">Bottom border ka text (scrolling ticker)</label>
+      <textarea id="tickerText" style="min-height:52px">🇰🇼 कुवैत से जुड़ी खबरें हिंदी में सबसे पहले पाने के लिए  ✅ Follow  🔔 Subscribe  ❤️ Like  💬 Comment  ज़रूर करें</textarea>
 
       <label class="field">Video ke liye extra (optional)</label>
       <div class="extras">
@@ -283,6 +330,14 @@
         </label>
       </div>
 
+      <label class="field">Download/Share size</label>
+      <div class="choice-row">
+        <label class="choice"><input type="radio" name="exportSize" value="auto" checked><span>Auto</span></label>
+        <label class="choice"><input type="radio" name="exportSize" value="square"><span>IG Square 1:1</span></label>
+        <label class="choice"><input type="radio" name="exportSize" value="portrait"><span>IG Post 4:5</span></label>
+        <label class="choice"><input type="radio" name="exportSize" value="story"><span>IG Story 9:16</span></label>
+      </div>
+
       <button class="btn" id="downloadBtn">&#128247; Image Template Download Karo (PNG)</button>
       <button class="btn btn-video" id="videoBtn">&#127916; Video Template Download Karo (MP4)</button>
 
@@ -295,7 +350,11 @@
       <button class="btn btn-share" id="shareBtn">&#128228; Share Karo (Instagram / Facebook / TikTok...)</button>
 
       <p class="hint">
-        <b>Photo/Video choose karo</b>, phir <b>Share Karo</b> dabao &mdash; wo file ready karega aur phone ka <b>share sheet</b> khol dega, jisme Instagram, Facebook, TikTok, WhatsApp jaise saare app dikhenge (jo bhi phone me install hain). Wahan se app choose karo &mdash; file already attached milegi, bas andar jaake <b>Post</b> dabana hoga. (Koi bhi website security reasons se apne aap post nahi kar sakti, yeh sab apps allow nahi karte &mdash; last tap hamesha aapko hi karna hoga.) Yeh feature sirf mobile (Chrome/Safari) par kaam karta hai; desktop par file seedha download ho jayegi.
+        <b>Download/Share size:</b> Auto = card apne natural (compact) size mein. Baaki teen options Instagram ke exact safe pixel sizes hain &mdash; poora card usme bina crop hue fit hota hai (bache hue space mein red letterbox bars aa jaate hain), taaki Instagram khud se kuch crop na kare.<br><br>
+        <b>Photo/Video choose karo</b>, phir <b>Share Karo</b> dabao &mdash; file pehle aapke phone me <b>save/download</b> ho jayegi (taaki hamesha manually upload kar sako), uske baad phone ka <b>share sheet</b> bhi khulega jisme WhatsApp jaise app seedha accept kar lete hain.<br><br>
+        <b>Instagram:</b> feed par "publish" koi bhi website seedha nahi kar sakti (Instagram khud isko allow nahi karta, spam rokne ke liye) &mdash; share sheet me Instagram par tap karoge to wo sirf <b>chat/Story</b> tab dikhayega. Feed post ke liye app kholke gallery se file manually upload karni hogi.<br>
+        <b>YouTube:</b> zyada tar phone me YouTube app share sheet me file accept hi nahi karta, isliye list me dikhega hi nahi &mdash; yeh app ka apna decision hai, kisi website ka nahi. Upload karne ke liye app kholke "+" se downloaded video manually select karo.<br>
+        <b>TikTok:</b> share sheet me dikhega to wo bhi upload screen khol dega, file already attached milegi.
       </p>
     </section>
 
@@ -320,8 +379,22 @@
           <span class="soc"><svg class="ic" viewBox="0 0 24 24" width="16" height="16"><rect width="24" height="24" rx="6" fill="#000"/><circle cx="9.3" cy="15.7" r="2.9" fill="#25F4EE"/><circle cx="10.3" cy="14.9" r="2.9" fill="#FE2C55"/><circle cx="9.8" cy="15.3" r="2.9" fill="#fff"/><rect x="11.6" y="4" width="2" height="11" fill="#fff"/><path d="M13.6 4c.3 2.3 1.9 4 4 4.3v2c-1.5-.1-2.9-.6-4-1.4V4z" fill="#fff"/></svg>@kuwaitnewshindi1</span>
           <span class="soc"><svg class="ic" viewBox="0 0 24 24" width="16" height="16"><defs><linearGradient id="igGradPreview" x1="0" y1="24" x2="24" y2="0"><stop offset="0" stop-color="#FEDA75"/><stop offset="0.25" stop-color="#FA7E1E"/><stop offset="0.5" stop-color="#D62976"/><stop offset="0.75" stop-color="#962FBF"/><stop offset="1" stop-color="#4F5BD5"/></linearGradient></defs><rect width="24" height="24" rx="6" fill="url(#igGradPreview)"/><rect x="5" y="5" width="14" height="14" rx="4" fill="none" stroke="#fff" stroke-width="2"/><circle cx="12" cy="12" r="3.3" fill="none" stroke="#fff" stroke-width="2"/><circle cx="17" cy="7" r="1" fill="#fff"/></svg>@kuwaitnewshindi1</span>
         </div>
+        <div class="ticker"><span id="pvTicker">🇰🇼 कुवैत से जुड़ी खबरें हिंदी में सबसे पहले पाने के लिए  ✅ Follow  🔔 Subscribe  ❤️ Like  💬 Comment  ज़रूर करें</span></div>
       </div>
     </section>
+  </div>
+
+  <!-- ================= frame-capture modal (pick a still from a local video) ================= -->
+  <div class="frame-modal" id="frameModal" hidden>
+    <div class="frame-modal-inner">
+      <video id="frameVideoEl" playsinline muted></video>
+      <input type="range" id="frameSeek" min="0" max="0" step="0.01" value="0">
+      <div class="frame-modal-actions">
+        <button type="button" class="btn" id="frameCaptureBtn">&#128247; Yeh Frame Photo Banao</button>
+        <button type="button" class="btn btn-video" id="frameCancelBtn">Cancel</button>
+      </div>
+      <p class="frame-hint">Slider se sahi moment par jao, phir "Yeh Frame Photo Banao" dabao &mdash; wahi frame ek photo ki tarah upar Photos mein add ho jayega.</p>
+    </div>
   </div>
 
 <script>
@@ -330,6 +403,7 @@
   let photos = []; // array of {dataUrl, img}
   let logoImg = null;  // Image() for the video intro logo
   let audioURL = null; // object URL of the uploaded sound
+  const DEFAULT_TICKER = "🇰🇼 कुवैत से जुड़ी खबरें हिंदी में सबसे पहले पाने के लिए  ✅ Follow  🔔 Subscribe  ❤️ Like  💬 Comment  ज़रूर करें";
 
   // ---------- date ----------
   function todayStr() {
@@ -367,12 +441,34 @@
       photosEl.appendChild(slot);
     }
   }
+
+  // Pre-bake a blurred copy of a photo ONCE (used as the soft backdrop behind
+  // it in the collage). Reused as-is on every animation frame instead of
+  // running an expensive canvas blur filter 100+ times during a video export.
+  function makeBlurredCanvas(img) {
+    const targetW = 360;
+    const ar = img.width / (img.height || 1) || 1;
+    const w = targetW, h = Math.max(1, Math.round(targetW / ar));
+    const pad = 20;
+    const c = document.createElement("canvas");
+    c.width = w + pad * 2;
+    c.height = h + pad * 2;
+    const cctx = c.getContext("2d");
+    cctx.filter = "blur(8px)";
+    cctx.drawImage(img, pad, pad, w, h);
+    return c;
+  }
+
   function handleFile(file) {
     if (!file || photos.length >= MAX) return;
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
-      img.onload = () => { photos.push({ dataUrl: reader.result, img }); renderSlots(); renderMedia(); };
+      img.onload = () => {
+        img._blurred = makeBlurredCanvas(img); // pre-baked once, reused every video frame
+        photos.push({ dataUrl: reader.result, img });
+        renderSlots(); renderMedia();
+      };
       img.src = reader.result;
     };
     reader.readAsDataURL(file);
@@ -452,8 +548,9 @@
     btn.textContent = "Translating... (Hindi mein badal rahe hain)";
     try {
       const lines = raw.split(/\n+/).map(s => s.trim()).filter(Boolean);
-      const translated = [];
-      for (const ln of lines) translated.push(await translateToHindi(ln));
+      // Fire all line translations together instead of one-by-one — same
+      // result, noticeably faster for multi-line input.
+      const translated = await Promise.all(lines.map(translateToHindi));
       const { headline, body } = splitText(translated.join("\n"));
       document.getElementById("genHeadline").value = headline;
       document.getElementById("genBody").value = body;
@@ -478,9 +575,12 @@
     document.getElementById("pvHeadline").textContent = headline || "Yahan headline aayegi";
     document.getElementById("pvBody").textContent = body || "Yahan news ka body text aayega.";
     document.getElementById("pvDate").textContent = todayStr();
+    document.getElementById("pvTicker").textContent =
+      (document.getElementById("tickerText").value || "").trim() || DEFAULT_TICKER;
   }
   document.getElementById("genHeadline").addEventListener("input", syncPreview);
   document.getElementById("genBody").addEventListener("input", syncPreview);
+  document.getElementById("tickerText").addEventListener("input", syncPreview);
 
   // ================= DOWNLOAD (canvas render) =================
   function wrapLines(ctx, text, maxW) {
@@ -520,10 +620,15 @@
     ctx.beginPath();
     ctx.rect(dx, dy, dw, dh);
     ctx.clip();
-    // blurred backdrop (overscanned so blur edges stay outside the cell)
-    ctx.filter = "blur(10px)";
-    drawCover(ctx, img, dx - 12, dy - 12, dw + 24, dh + 24);
-    ctx.filter = "none";
+    // blurred backdrop — uses the pre-baked blur (see makeBlurredCanvas) when
+    // available; only falls back to a live filter if that cache is missing.
+    if (img._blurred) {
+      drawCover(ctx, img._blurred, dx - 12, dy - 12, dw + 24, dh + 24);
+    } else {
+      ctx.filter = "blur(10px)";
+      drawCover(ctx, img, dx - 12, dy - 12, dw + 24, dh + 24);
+      ctx.filter = "none";
+    }
     ctx.fillStyle = "rgba(0,0,0,0.18)";
     ctx.fillRect(dx, dy, dw, dh);
     // full image, contained and centered
@@ -625,6 +730,53 @@
     ctx.restore();
   }
 
+  // ---- bottom ticker band: static (single-line, shrink-to-fit) for the PNG,
+  // continuously-scrolling marquee for the video ----
+  function drawTickerStatic(ctx, text, x, y, w, h, fam) {
+    ctx.save();
+    ctx.fillStyle = "#e01e26";
+    ctx.fillRect(x, y, w, h);
+    const padX = 14, maxW = w - padX * 2;
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    let size = 13;
+    ctx.font = "700 " + size + "px " + fam;
+    while (size > 9 && ctx.measureText(text).width > maxW) {
+      size -= 0.5;
+      ctx.font = "700 " + size + "px " + fam;
+    }
+    let out = text;
+    if (ctx.measureText(out).width > maxW) {
+      while (out.length > 1 && ctx.measureText(out + "…").width > maxW) out = out.slice(0, -1);
+      out += "…";
+    }
+    ctx.fillText(out, x + w / 2, y + h / 2 + 1);
+    ctx.restore();
+  }
+
+  function drawTickerScroll(ctx, text, x, y, w, h, fam, tMs) {
+    ctx.save();
+    ctx.fillStyle = "#e01e26";
+    ctx.fillRect(x, y, w, h);
+    ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+    ctx.fillStyle = "#fff";
+    ctx.font = "700 13px " + fam;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    const full = text + "   \u2022   ";
+    const tw = ctx.measureText(full).width || 1;
+    const speed = 55; // logical px / second
+    const shift = (tMs / 1000 * speed) % tw;
+    let drawX = x + w - shift;
+    while (drawX > x - tw) drawX -= tw;
+    while (drawX < x + w) {
+      ctx.fillText(full, drawX, y + h / 2 + 1);
+      drawX += tw;
+    }
+    ctx.restore();
+  }
+
   // Compute all card measurements + wrapped text lines (shared by PNG + video).
   function computeLayout() {
     const W = 440, border = 6, pad = 18;
@@ -632,21 +784,40 @@
     const contentW = innerW - pad * 2;
     const { headline, body } = currentContent();
     const dateTxt = todayStr();
+    const tickerText = (document.getElementById("tickerText").value || "").trim() || DEFAULT_TICKER;
     const tmp = document.createElement("canvas").getContext("2d");
     const fam = getComputedStyle(document.body).fontFamily;
     tmp.font = "800 17px " + fam;
     const hLines = wrapLines(tmp, headline || " ", contentW);
     tmp.font = "800 14px " + fam;
     const bLines = wrapLines(tmp, body || " ", contentW);
-    const headerH = 52, mediaH = Math.round(innerW * 0.60), dotsH = 26;
+    const headerH = 52, dotsH = 26;
     const hLineH = 24, bLineH = 24;
     const headlineBlock = 12 + hLines.length * hLineH + 8;
     const bodyBlock = bLines.length * bLineH + 12;
-    const ruleH = 12, dateH = 56, socialH = 34;
-    const innerH = headerH + mediaH + dotsH + headlineBlock + bodyBlock + ruleH + dateH + socialH;
+    const ruleH = 12, dateH = 56, socialH = 34, tickerH = 36;
+    const fixedH = headerH + dotsH + headlineBlock + bodyBlock + ruleH + dateH + socialH + tickerH;
+
+    // For a chosen Instagram frame, size the photo band so the CARD ITSELF
+    // ends up close to that frame's ratio — instead of keeping a fixed
+    // compact photo height and padding the leftover gap with a big red bar.
+    // (Auto keeps the original fixed proportion, unchanged.)
+    const frame = getExportFrame();
+    let mediaH;
+    if (frame) {
+      const wanted = Math.round(W * (frame.h / frame.w) - border * 2 - fixedH);
+      const minMedia = Math.round(innerW * 0.22);
+      const maxMedia = Math.round(innerW * 2.3);
+      mediaH = Math.max(minMedia, Math.min(maxMedia, wanted));
+    } else {
+      mediaH = Math.round(innerW * 0.60);
+    }
+
+    const innerH = fixedH + mediaH;
     const H = innerH + border * 2;
     return { W, H, border, pad, innerW, contentW, innerH, fam, hLines, bLines,
-             dateTxt, headerH, mediaH, dotsH, hLineH, bLineH, ruleH, dateH, socialH };
+             dateTxt, headerH, mediaH, dotsH, hLineH, bLineH, ruleH, dateH, socialH,
+             tickerH, tickerText };
   }
 
   // Draw the card. `a` holds per-element animation values (all default to the
@@ -661,13 +832,14 @@
     const ruleAlpha = gv("ruleAlpha", 1);
     const dateAlpha = gv("dateAlpha", 1), dateScale = gv("dateScale", 1);
     const socialAlpha = gv("socialAlpha", 1);
+    const tMs = a.tMs; // undefined => static render (PNG); a number while animating (video)
     const { W, H, border, pad, innerW, innerH, fam, hLines, bLines, dateTxt,
-            headerH, mediaH, dotsH, hLineH, bLineH } = L;
+            headerH, mediaH, dotsH, hLineH, bLineH, tickerH, tickerText } = L;
 
     // card frame (always solid)
     ctx.globalAlpha = 1;
     ctx.fillStyle = "#e01e26"; roundRect(ctx, 0, 0, W, H, 12); ctx.fill();
-    ctx.fillStyle = "#ffffff"; roundRect(ctx, border, border, innerW, innerH, 7); ctx.fill();
+    ctx.fillStyle = "#ffffff"; roundRect(ctx, border, border, innerW, innerH - tickerH, 7); ctx.fill();
 
     let y = border;
 
@@ -774,13 +946,57 @@
       sx += widths[i] + itemGap;
     });
     ctx.globalAlpha = 1;
+
+    // bottom ticker band — always visible; scrolls continuously in the
+    // video, shrink-to-fit single line in the static PNG.
+    const tickerY = H - border - tickerH;
+    if (tMs === undefined) {
+      drawTickerStatic(ctx, tickerText, border, tickerY, innerW, tickerH, fam);
+    } else {
+      drawTickerScroll(ctx, tickerText, border, tickerY, innerW, tickerH, fam, tMs);
+    }
+  }
+
+  // Instagram-safe export sizes. null = "Auto" (compact card, its natural size).
+  function getExportFrame() {
+    const el = document.querySelector('input[name="exportSize"]:checked');
+    const v = el ? el.value : "auto";
+    if (v === "square") return { w: 1080, h: 1080 };
+    if (v === "portrait") return { w: 1080, h: 1350 };
+    if (v === "story") return { w: 1080, h: 1920 };
+    return null;
+  }
+
+  // Scales + centers the whole card inside a fixed-size frame with NO
+  // cropping (letterboxed with the card's own red, so the bars look
+  // intentional rather than like empty space).
+  function drawFramed(ctx, L, frame, animArgs) {
+    const scale = Math.min(frame.w / L.W, frame.h / L.H);
+    const cw = L.W * scale, ch = L.H * scale;
+    const ox = (frame.w - cw) / 2, oy = (frame.h - ch) / 2;
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.scale(scale, scale);
+    drawCard(ctx, L, animArgs);
+    ctx.restore();
   }
 
   // Static PNG canvas.
   function buildCanvas() {
-    const S = 2;
     const L = computeLayout();
+    const frame = getExportFrame();
     const canvas = document.createElement("canvas");
+    if (frame) {
+      canvas.width = frame.w;
+      canvas.height = frame.h;
+      const ctx = canvas.getContext("2d");
+      ctx.textBaseline = "alphabetic";
+      ctx.fillStyle = "#e01e26";
+      ctx.fillRect(0, 0, frame.w, frame.h);
+      drawFramed(ctx, L, frame);
+      return canvas;
+    }
+    const S = 2;
     canvas.width = L.W * S;
     canvas.height = L.H * S;
     const ctx = canvas.getContext("2d");
@@ -808,6 +1024,7 @@
       dateAlpha: seg(ms, 2100, 2800),
       dateScale: 0.6 + 0.4 * seg(ms, 2100, 2800),
       socialAlpha: seg(ms, 2600, 3200),
+      tMs: ms,
     };
   }
 
@@ -833,17 +1050,20 @@
     const INTRO_MS = logoImg ? 1500 : 0;   // logo shown first, only if one was added
     const DURATION = INTRO_MS + CARD_MS;
     const L = computeLayout();
+    const frame = getExportFrame(); // null (auto) or {w,h} Instagram-safe target
 
-    // Scale up so the video is ~1080px-class (Instagram/TikTok like >=1080 wide),
-    // and force EVEN pixel dimensions (H.264 requires even width & height).
-    const S = Math.max(2, Math.ceil(1080 / L.W));
-    let cw = Math.round(L.W * S), ch = Math.round(L.H * S);
-    if (cw % 2) cw++;
+    // Auto: scale up so the video is ~1080px-class, same as before.
+    // Framed: the preset (1080x1080 / 1080x1350 / 1080x1920) IS the final size.
+    const S = frame ? 1 : Math.max(2, Math.ceil(1080 / L.W));
+    const FW = frame ? frame.w : L.W, FH = frame ? frame.h : L.H;
+    let cw = Math.round(FW * S), ch = Math.round(FH * S);
+    if (cw % 2) cw++;   // H.264 requires even width & height
     if (ch % 2) ch++;
     const canvas = document.createElement("canvas");
     canvas.width = cw;
     canvas.height = ch;
-    const ctx = canvas.getContext("2d");
+    // alpha:false — every frame is fully opaque anyway, so skip alpha compositing.
+    const ctx = canvas.getContext("2d", { alpha: false });
     ctx.scale(S, S);
     ctx.textBaseline = "alphabetic";
 
@@ -891,7 +1111,11 @@
       }
     }
 
-    const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6000000 });
+    // Bitrate scales with resolution so a larger export (e.g. Story 1080x1920)
+    // doesn't come out any softer than the compact "Auto" size did.
+    const baselinePixels = 880 * 1400;
+    const bitrate = Math.min(14000000, Math.max(4000000, Math.round(6000000 * (cw * ch) / baselinePixels)));
+    const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: bitrate });
     const chunks = [];
     rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
     const finished = new Promise(res => {
@@ -905,26 +1129,31 @@
 
     await new Promise(resolve => {
       const t0 = performance.now();
+      let lastSec = null;
       // setTimeout (not requestAnimationFrame) so recording still completes
       // even if the browser tab is in the background.
-      function frame() {
+      function tick() {
         const ms = performance.now() - t0;
         const t = Math.min(ms / DURATION, 1);
         const inIntro = ms < INTRO_MS;
 
         ctx.save();
         ctx.setTransform(1, 0, 0, 1, 0, 0);                    // fill full physical canvas
-        ctx.fillStyle = inIntro ? "#1f2937" : "#e9ebee";       // dark for logo, light for card
+        ctx.fillStyle = inIntro ? "#1f2937" : (frame ? "#e01e26" : "#e9ebee");
         ctx.fillRect(0, 0, cw, ch);
         ctx.restore();
 
-        if (inIntro) drawIntro(ctx, L.W, L.H, ms / INTRO_MS);
+        if (inIntro) drawIntro(ctx, FW, FH, ms / INTRO_MS);
+        else if (frame) drawFramed(ctx, L, frame, cardAnim(ms - INTRO_MS));
         else drawCard(ctx, L, cardAnim(ms - INTRO_MS));
 
-        if (btn) btn.textContent = "Recording video... " + Math.max(1, Math.ceil((DURATION - ms) / 1000)) + "s";
-        if (t >= 1) resolve(); else setTimeout(frame, 1000 / 30);
+        if (btn) {
+          const secLeft = Math.max(1, Math.ceil((DURATION - ms) / 1000));
+          if (secLeft !== lastSec) { btn.textContent = "Recording video... " + secLeft + "s"; lastSec = secLeft; }
+        }
+        if (t >= 1) resolve(); else setTimeout(tick, 1000 / 30);
       }
-      setTimeout(frame, 0);
+      setTimeout(tick, 0);
     });
 
     rec.stop();
@@ -947,7 +1176,7 @@
     buildCanvas().toBlob(blob => downloadBlob(blob, "hindi-news-card.png"), "image/png");
   };
 
-  // Video template -> animated WebM
+  // Video template -> animated MP4/WebM
   document.getElementById("videoBtn").onclick = async () => {
     const btn = document.getElementById("videoBtn");
     const label = btn.textContent;
@@ -985,6 +1214,10 @@
         file = new File([blob], "hindi-news-card." + ext, { type: blob.type });
       }
 
+      // Always save a copy to the device first — whatever happens in the
+      // share sheet next, a manual upload is always still possible.
+      downloadBlob(blob, file.name);
+
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
           await navigator.share({
@@ -992,14 +1225,10 @@
             title: (document.getElementById("genHeadline").value || "News")
           });
         } catch (shareErr) {
-          if (shareErr && shareErr.name !== "AbortError") {
-            downloadBlob(blob, file.name);
-            alert("Share cancel/fail hua, isliye " + type + " download ho gayi hai. Ab app kholke usse manually upload kar do.");
-          }
+          // AbortError just means the user closed the share sheet — the
+          // file is already downloaded above, so there's nothing more to do.
         }
       } else {
-        // Desktop ya purane browser me file share sheet nahi milta.
-        downloadBlob(blob, file.name);
         alert("Is browser/device par share sheet support nahi hai, isliye " + type + " download ho gayi hai. Mobile (Chrome/Safari) par yeh button seedha app share sheet khol dega.");
       }
     } catch (e) {
@@ -1067,6 +1296,69 @@
       audioChip.classList.remove("set");
       audioClear.hidden = true;
     };
+  })();
+
+  // ---------- capture a still frame from a locally-chosen video ----------
+  // (fully client-side: your own video file -> <video> + <canvas> -> photo.
+  // No third-party site involved, so there's nothing to scrape and no CORS/
+  // ToS issue — see the chat reply for why that's the safe approach here.)
+  (function setupFrameCapture() {
+    const input = document.getElementById("frameVideoInput");
+    const modal = document.getElementById("frameModal");
+    const videoEl = document.getElementById("frameVideoEl");
+    const seek = document.getElementById("frameSeek");
+    const captureBtn = document.getElementById("frameCaptureBtn");
+    const cancelBtn = document.getElementById("frameCancelBtn");
+    let objURL = null;
+
+    function close() {
+      modal.hidden = true;
+      videoEl.pause();
+      videoEl.removeAttribute("src");
+      videoEl.load();
+      if (objURL) { URL.revokeObjectURL(objURL); objURL = null; }
+      input.value = "";
+    }
+
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (objURL) URL.revokeObjectURL(objURL);
+      objURL = URL.createObjectURL(file);
+      videoEl.src = objURL;
+      modal.hidden = false;
+      videoEl.onloadedmetadata = () => {
+        seek.min = 0;
+        seek.max = videoEl.duration || 0;
+        seek.value = 0;
+        videoEl.currentTime = 0;
+      };
+    };
+
+    seek.oninput = () => { videoEl.currentTime = parseFloat(seek.value) || 0; };
+    videoEl.ontimeupdate = () => { seek.value = videoEl.currentTime; };
+
+    captureBtn.onclick = () => {
+      if (photos.length >= MAX) {
+        alert("Zyada se zyada " + MAX + " photo add ho sakti hain. Pehle ek photo hatao.");
+        return;
+      }
+      const c = document.createElement("canvas");
+      c.width = videoEl.videoWidth || 640;
+      c.height = videoEl.videoHeight || 360;
+      c.getContext("2d").drawImage(videoEl, 0, 0, c.width, c.height);
+      const dataUrl = c.toDataURL("image/png");
+      const img = new Image();
+      img.onload = () => {
+        img._blurred = makeBlurredCanvas(img);
+        photos.push({ dataUrl, img });
+        renderSlots(); renderMedia();
+      };
+      img.src = dataUrl;
+      close();
+    };
+
+    cancelBtn.onclick = close;
   })();
 
   // ---------- init ----------
