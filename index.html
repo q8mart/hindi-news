@@ -924,7 +924,9 @@
     ctx.globalAlpha = 1;
     y = py + ph;
 
-    // social handles row
+    // social handles row — centered in the gap between the date pill and
+    // the ticker (rather than always clinging 5px under the pill), so any
+    // extra room from a taller frame doesn't just sit as dead space below it
     ctx.globalAlpha = socialAlpha;
     ctx.font = "700 11px " + fam;
     ctx.fillStyle = "#374151";
@@ -937,7 +939,8 @@
     const widths = socials.map(s => iconS + iconGap + ctx.measureText(s.txt).width);
     const totalW = widths.reduce((a, b) => a + b, 0) + itemGap * (socials.length - 1);
     let sx = W / 2 - totalW / 2;
-    const rowY = y + 5;
+    const gapTop = y, gapBottom = H - border - tickerH;
+    const rowY = gapTop + Math.max(5, (gapBottom - gapTop - iconS) / 2);
     ctx.textAlign = "left";
     socials.forEach((s, i) => {
       s.draw(ctx, sx, rowY, iconS);
