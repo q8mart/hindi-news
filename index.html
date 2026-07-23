@@ -140,6 +140,16 @@
   .btn-share:hover { filter: brightness(1.08); background: linear-gradient(135deg,#FEDA75,#FA7E1E,#D62976,#962FBF,#4F5BD5); }
 
   .extras { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+  .length-row {
+    display: flex; align-items: center; gap: 12px;
+    background: #fff; border: 1px solid #c7ccd2; border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .length-row input[type=range] { flex: 1; accent-color: var(--red); }
+  .length-row .val {
+    font-size: 13px; font-weight: 700; color: #374151;
+    min-width: 40px; text-align: right;
+  }
   .chip {
     display: flex; align-items: center; gap: 8px;
     border: 1px solid #c7ccd2; border-radius: 8px;
@@ -318,16 +328,22 @@
       <div class="extras">
         <label class="chip" id="logoChip">
           <span class="ic">&#128444;</span>
-          <span class="txt" id="logoName">Logo add karo (video start me)</span>
+          <span class="txt" id="logoName">Logo add karo (video end me)</span>
           <input type="file" accept="image/*" id="logoInput" hidden>
           <button class="x" id="logoClear" title="Hatao" hidden>&times;</button>
         </label>
-        <label class="chip" id="audioChip">
+        <label class="chip set" id="audioChip">
           <span class="ic">&#127925;</span>
-          <span class="txt" id="audioName">Sound add karo (apne system se)</span>
+          <span class="txt" id="audioName">Default sound ON (badalne ke liye tap karo)</span>
           <input type="file" accept="audio/*" id="audioInput" hidden>
-          <button class="x" id="audioClear" title="Hatao" hidden>&times;</button>
+          <button class="x" id="audioClear" title="Hatao">&times;</button>
         </label>
+      </div>
+
+      <label class="field">Video length</label>
+      <div class="length-row">
+        <input type="range" id="videoLength" min="5" max="120" step="1" value="40">
+        <span class="val" id="videoLengthVal">40s</span>
       </div>
 
       <label class="field">Download/Share size</label>
@@ -402,7 +418,11 @@
   const MAX = 4;
   let photos = []; // array of {dataUrl, img}
   let logoImg = null;  // Image() for the video intro logo
-  let audioURL = null; // object URL of the uploaded sound
+  // Default sound used in every video unless you upload your own or clear it.
+  // Add an audio file to your GitHub repo, in the SAME folder as this
+  // index.html, with this exact name (or change the name below to match it).
+  const DEFAULT_AUDIO_URL = "default-sound.mp3";
+  let audioURL = DEFAULT_AUDIO_URL; // object URL once a custom file is uploaded, else the default path above
   const DEFAULT_TICKER = "🇰🇼 कुवैत से जुड़ी खबरें हिंदी में सबसे पहले पाने के लिए  ✅ Follow  🔔 Subscribe  ❤️ Like  💬 Comment  ज़रूर करें";
 
   // ---------- date ----------
@@ -970,6 +990,13 @@
     return null;
   }
 
+  // How long the card itself stays on screen, from the length slider (seconds -> ms).
+  function getVideoLengthMs() {
+    const el = document.getElementById("videoLength");
+    const secs = el ? parseInt(el.value, 10) : 40;
+    return Math.max(5, Math.min(120, secs || 40)) * 1000;
+  }
+
   // Scales + centers the whole card inside a fixed-size frame with NO
   // cropping (letterboxed with the card's own red, so the bars look
   // intentional rather than like empty space).
@@ -1031,7 +1058,7 @@
     };
   }
 
-  // Logo intro splash. p = 0..1 progress through the intro.
+  // Logo outro splash (plays after the card). p = 0..1 progress through it.
   function drawIntro(ctx, W, H, p) {
     let alpha = 1;
     if (p < 0.28) alpha = p / 0.28;              // fade in
@@ -1049,9 +1076,9 @@
   }
 
   async function recordVideo(btn) {
-    const CARD_MS = 6000;
-    const INTRO_MS = logoImg ? 1500 : 0;   // logo shown first, only if one was added
-    const DURATION = INTRO_MS + CARD_MS;
+    const CARD_MS = getVideoLengthMs();
+    const OUTRO_MS = logoImg ? 1500 : 0;   // logo shown last, only if one was added
+    const DURATION = CARD_MS + OUTRO_MS;
     const L = computeLayout();
     const frame = getExportFrame(); // null (auto) or {w,h} Instagram-safe target
 
@@ -1138,17 +1165,17 @@
       function tick() {
         const ms = performance.now() - t0;
         const t = Math.min(ms / DURATION, 1);
-        const inIntro = ms < INTRO_MS;
+        const inOutro = ms >= CARD_MS;
 
         ctx.save();
         ctx.setTransform(1, 0, 0, 1, 0, 0);                    // fill full physical canvas
-        ctx.fillStyle = inIntro ? "#1f2937" : (frame ? "#e01e26" : "#e9ebee");
+        ctx.fillStyle = inOutro ? "#1f2937" : (frame ? "#e01e26" : "#e9ebee");
         ctx.fillRect(0, 0, cw, ch);
         ctx.restore();
 
-        if (inIntro) drawIntro(ctx, FW, FH, ms / INTRO_MS);
-        else if (frame) drawFramed(ctx, L, frame, cardAnim(ms - INTRO_MS));
-        else drawCard(ctx, L, cardAnim(ms - INTRO_MS));
+        if (inOutro) drawIntro(ctx, FW, FH, (ms - CARD_MS) / OUTRO_MS);
+        else if (frame) drawFramed(ctx, L, frame, cardAnim(ms));
+        else drawCard(ctx, L, cardAnim(ms));
 
         if (btn) {
           const secLeft = Math.max(1, Math.ceil((DURATION - ms) / 1000));
@@ -1276,7 +1303,7 @@
       e.preventDefault();
       logoImg = null;
       logoInput.value = "";
-      logoName.textContent = "Logo add karo (video start me)";
+      logoName.textContent = "Logo add karo (video end me)";
       logoChip.classList.remove("set");
       logoClear.hidden = true;
     };
@@ -1284,7 +1311,7 @@
     audioInput.onchange = (e) => {
       const file = e.target.files[0];
       if (!file) return;
-      if (audioURL) URL.revokeObjectURL(audioURL);
+      if (audioURL && audioURL.startsWith("blob:")) URL.revokeObjectURL(audioURL);
       audioURL = URL.createObjectURL(file);
       audioName.textContent = file.name;
       audioChip.classList.add("set");
@@ -1292,7 +1319,7 @@
     };
     audioClear.onclick = (e) => {
       e.preventDefault();
-      if (audioURL) URL.revokeObjectURL(audioURL);
+      if (audioURL && audioURL.startsWith("blob:")) URL.revokeObjectURL(audioURL);
       audioURL = null;
       audioInput.value = "";
       audioName.textContent = "Sound add karo (apne system se)";
@@ -1362,6 +1389,13 @@
     };
 
     cancelBtn.onclick = close;
+  })();
+
+  // ---------- video length slider ----------
+  (function setupVideoLength() {
+    const el = document.getElementById("videoLength");
+    const val = document.getElementById("videoLengthVal");
+    el.addEventListener("input", () => { val.textContent = el.value + "s"; });
   })();
 
   // ---------- init ----------
